@@ -20,12 +20,13 @@
         }
         #editor {
             width: 100%;
-            height: 500px;
+            height: 100%;
+            overflow: auto;
             font-family: monospace;
             resize: vertical;
         }
         #tree {
-            height: 500px;
+            height: 800px;
             overflow: auto;
             border: 1px solid #ddd;
             padding: 10px;
@@ -75,17 +76,45 @@
     <script>
         let currentFileName = '';
 
-        // Initialize jsTree
+        // Initialize jsTree with enhanced configuration
         $('#tree').jstree({
             'core': {
                 'themes': {
-                    'variant': 'large'
+                    'variant': 'large',
+                    'responsive': true
                 },
-                'data': []
+                'data': [],
+                'check_callback': true
+            },
+            'plugins': ['wholerow', 'types'],
+            'types': {
+                'default': {
+                    'icon': 'jstree-file'
+                },
+                'folder': {
+                    'icon': 'jstree-folder'
+                }
             }
         });
 
-        function convertToTreeData(obj, parent = '#') {
+        // Add click handlers for the tree
+        $('#tree')
+            .on('click', '.jstree-anchor', function(e) {
+                e.preventDefault();
+                let node = $(this).closest('.jstree-node');
+                let tree = $('#tree').jstree(true);
+                let nodeId = node.attr('id');
+
+                if (tree.is_loaded(nodeId) && tree.get_node(nodeId).children.length > 0) {
+                    if (tree.is_open(nodeId)) {
+                        tree.close_node(nodeId);
+                    } else {
+                        tree.open_node(nodeId);
+                    }
+                }
+            });
+
+       function convertToTreeData(obj, parent = '#') {
             let result = [];
 
             if (obj === null || obj === undefined) {
@@ -100,14 +129,14 @@
                             id: nodeId,
                             parent: parent,
                             text: `[${index}] = null`,
-                            icon: 'jstree-file'
+                            type: 'default'
                         });
                     } else if (typeof item === 'object') {
                         result.push({
                             id: nodeId,
                             parent: parent,
                             text: `[${index}]`,
-                            icon: 'jstree-folder'
+                            type: 'folder'
                         });
                         result = result.concat(convertToTreeData(item, nodeId));
                     } else {
@@ -115,7 +144,7 @@
                             id: nodeId,
                             parent: parent,
                             text: `[${index}] = ${item}`,
-                            icon: 'jstree-file'
+                            type: 'default'
                         });
                     }
                 });
@@ -129,14 +158,14 @@
                             id: nodeId,
                             parent: parent,
                             text: `${key}: null`,
-                            icon: 'jstree-file'
+                            type: 'default'
                         });
                     } else if (typeof value === 'object') {
                         result.push({
                             id: nodeId,
                             parent: parent,
                             text: key,
-                            icon: 'jstree-folder'
+                            type: 'folder'
                         });
                         result = result.concat(convertToTreeData(value, nodeId));
                     } else {
@@ -144,7 +173,7 @@
                             id: nodeId,
                             parent: parent,
                             text: `${key}: ${value}`,
-                            icon: 'jstree-file'
+                            type: 'default'
                         });
                     }
                 }
@@ -257,6 +286,23 @@
         // Update tree preview when editor content changes
         document.getElementById('editor').addEventListener('input', function(e) {
             updateTreePreview(e.target.value);
+        });
+
+     // Optional: Add keyboard shortcuts
+        $(document).on('keydown', function(e) {
+            if (e.target.id === 'editor') return; // Don't interfere with editor
+
+            if (e.key === 'ArrowRight') {
+                let selected = $('#tree').jstree('get_selected');
+                if (selected.length) {
+                    $('#tree').jstree('open_node', selected);
+                }
+            } else if (e.key === 'ArrowLeft') {
+                let selected = $('#tree').jstree('get_selected');
+                if (selected.length) {
+                    $('#tree').jstree('close_node', selected);
+                }
+            }
         });
     </script>
 </body>
