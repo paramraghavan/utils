@@ -9,247 +9,173 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            display: flex;
+            gap: 20px;
         }
-        .editor-container {
-            margin-top: 20px;
-        }
-        #tree {
-            width: 100%;
+        .editor-section, .preview-section {
+            flex: 1;
             border: 1px solid #ccc;
-            padding: 10px;
-            min-height: 500px;
-            overflow: auto;
-        }
-        .controls {
-            margin: 20px 0;
-        }
-        button {
-            margin: 5px;
-            padding: 8px 15px;
-            cursor: pointer;
-        }
-        .file-controls {
-            margin-bottom: 20px;
-            padding: 10px;
-            background: #f5f5f5;
+            padding: 15px;
             border-radius: 4px;
         }
-        .tree-controls {
-            margin-bottom: 10px;
+        #editor {
+            width: 100%;
+            height: 500px;
+            font-family: monospace;
+            resize: vertical;
         }
-        /* Fix for overlapping nodes */
-        .jstree-default .jstree-node {
-            margin-left: 24px;
+        #tree {
+            height: 500px;
+            overflow: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
         }
-        .jstree-default .jstree-container-ul > .jstree-node {
-            margin-left: 0;
+        .controls {
+            margin-bottom: 15px;
         }
-        .jstree-default .jstree-anchor {
-            height: auto;
-            white-space: normal;
-            padding: 4px 8px;
+        button {
+            padding: 8px 15px;
+            margin-right: 10px;
+            cursor: pointer;
         }
-        /* Value display */
-        .node-value {
-            color: #666;
-            margin-left: 4px;
+        .error {
+            color: red;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>YAML Editor</h1>
-
-        <!-- Combined File Controls -->
-        <div class="file-controls">
-            <input type="file" id="file-input" accept=".yml,.yaml">
-            <select id="yaml-files" style="margin: 0 10px;">
-                <option value="">Select existing file...</option>
-                {% for file in yaml_files %}
-                <option value="{{ file }}">{{ file }}</option>
-                {% endfor %}
-            </select>
-            <button onclick="handleFile()">Load File</button>
+        <div class="editor-section">
+            <h2>YAML Editor</h2>
+            <div class="controls">
+                <input type="file" id="file-input" accept=".yml,.yaml">
+                <select id="yaml-files">
+                    <option value="">Select existing file...</option>
+                    {% for file in yaml_files %}
+                    <option value="{{ file }}">{{ file }}</option>
+                    {% endfor %}
+                </select>
+                <button onclick="loadFile()">Load</button>
+                <button onclick="saveChanges()">Save</button>
+            </div>
+            <textarea id="editor" spellcheck="false"></textarea>
+            <div id="error-message" class="error"></div>
         </div>
 
-        <!-- Tree Controls -->
-        <div class="tree-controls">
-            <button onclick="$('#tree').jstree('open_all');">Expand All</button>
-            <button onclick="$('#tree').jstree('close_all');">Collapse All</button>
-            <button onclick="saveChanges()">Save Changes</button>
-        </div>
-
-        <!-- Tree Editor -->
-        <div class="editor-container">
+        <div class="preview-section">
+            <h2>Tree Preview</h2>
             <div id="tree"></div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/jstree.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
     <script>
         let currentFileName = '';
 
         // Initialize jsTree
         $('#tree').jstree({
             'core': {
-                'check_callback': true,
-                'data': [],
                 'themes': {
-                    'responsive': false,
                     'variant': 'large'
-                }
-            },
-            'plugins': ['contextmenu', 'wholerow', 'types'],
-            'contextmenu': {
-                'items': function(node) {
-                    return {
-                        'Add': {
-                            'label': 'Add Child Node',
-                            'action': function() {
-                                addNode(node);
-                            }
-                        },
-                        'Edit': {
-                            'label': 'Edit Node',
-                            'action': function() {
-                                editNode(node);
-                            }
-                        },
-                        'Delete': {
-                            'label': 'Delete Node',
-                            'action': function() {
-                                deleteNode(node);
-                            }
-                        }
-                    };
-                }
+                },
+                'data': []
             }
         });
 
-        // Node operations
-        function addNode(parentNode) {
-            let name = prompt('Enter node name:');
-            if (!name) return;
+        function convertToTreeData(obj, parent = '#') {
+            let result = [];
 
-            let value = prompt('Enter value (leave empty for object):');
-            let tree = $('#tree').jstree(true);
-
-            let newNode = {
-                text: value ? `${name}: ${value}` : name,
-                data: { name: name, value: value }
-            };
-
-            let nodeId = tree.create_node(parentNode, newNode);
-            tree.open_node(parentNode);
-            tree.select_node(nodeId);
-        }
-
-        function editNode(node) {
-            let tree = $('#tree').jstree(true);
-            let currentName = node.data?.name || node.text.split(':')[0].trim();
-            let currentValue = node.data?.value || '';
-
-            let newName = prompt('Enter new name:', currentName);
-            if (newName === null) return;
-
-            let newValue = prompt('Enter new value:', currentValue);
-            if (newValue === null) return;
-
-            node.data = { name: newName, value: newValue };
-            tree.rename_node(node, newValue ? `${newName}: ${newValue}` : newName);
-        }
-
-        function deleteNode(node) {
-            if (confirm('Are you sure you want to delete this node?')) {
-                $('#tree').jstree('delete_node', node);
+            if (obj === null || obj === undefined) {
+                return result;
             }
-        }
 
-        // Keyboard shortcuts
-        $(document).on('keydown', function(e) {
-            let tree = $('#tree').jstree(true);
-            let selected = tree.get_selected();
-            if (!selected.length) return;
-
-            let node = tree.get_node(selected[0]);
-
-            switch(e.keyCode) {
-                case 46: // Delete
-                    e.preventDefault();
-                    deleteNode(node);
-                    break;
-                case 45: // Insert
-                    e.preventDefault();
-                    addNode(node);
-                    break;
-                case 113: // F2
-                    e.preventDefault();
-                    editNode(node);
-                    break;
-            }
-        });
-
-        function convertToJsTree(obj, parentId = '#') {
-            let nodes = [];
-            for (let key in obj) {
-                let nodeId = Math.random().toString(36).substr(2, 9);
-                let value = obj[key];
-                let isObject = typeof value === 'object' && value !== null;
-
-                let node = {
-                    id: nodeId,
-                    parent: parentId,
-                    text: isObject ? key : `${key}: ${value}`,
-                    data: {
-                        name: key,
-                        value: isObject ? null : value
+            if (Array.isArray(obj)) {
+                obj.forEach((item, index) => {
+                    const nodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
+                    if (item === null || item === undefined) {
+                        result.push({
+                            id: nodeId,
+                            parent: parent,
+                            text: `[${index}] = null`,
+                            icon: 'jstree-file'
+                        });
+                    } else if (typeof item === 'object') {
+                        result.push({
+                            id: nodeId,
+                            parent: parent,
+                            text: `[${index}]`,
+                            icon: 'jstree-folder'
+                        });
+                        result = result.concat(convertToTreeData(item, nodeId));
+                    } else {
+                        result.push({
+                            id: nodeId,
+                            parent: parent,
+                            text: `[${index}] = ${item}`,
+                            icon: 'jstree-file'
+                        });
                     }
-                };
-                nodes.push(node);
-
-                if (isObject) {
-                    nodes = nodes.concat(convertToJsTree(value, nodeId));
-                }
-            }
-            return nodes;
-        }
-
-        function convertFromJsTree() {
-            let result = {};
-            let tree = $('#tree').jstree(true);
-            let rootNodes = tree.get_node('#').children;
-
-            function processNode(nodeId) {
-                let node = tree.get_node(nodeId);
-                let children = node.children;
-
-                if (children.length === 0) {
-                    return node.data?.value || '';
-                }
-
-                let nodeData = {};
-                children.forEach(childId => {
-                    let childNode = tree.get_node(childId);
-                    nodeData[childNode.data.name] = processNode(childId);
                 });
-                return nodeData;
-            }
+            } else if (typeof obj === 'object') {
+                for (let key in obj) {
+                    const nodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
+                    const value = obj[key];
 
-            rootNodes.forEach(nodeId => {
-                let node = tree.get_node(nodeId);
-                result[node.data.name] = processNode(nodeId);
-            });
+                    if (value === null || value === undefined) {
+                        result.push({
+                            id: nodeId,
+                            parent: parent,
+                            text: `${key}: null`,
+                            icon: 'jstree-file'
+                        });
+                    } else if (typeof value === 'object') {
+                        result.push({
+                            id: nodeId,
+                            parent: parent,
+                            text: key,
+                            icon: 'jstree-folder'
+                        });
+                        result = result.concat(convertToTreeData(value, nodeId));
+                    } else {
+                        result.push({
+                            id: nodeId,
+                            parent: parent,
+                            text: `${key}: ${value}`,
+                            icon: 'jstree-file'
+                        });
+                    }
+                }
+            }
 
             return result;
         }
 
-        // Combined file handling
-        async function handleFile() {
+        function updateTreePreview(yamlContent) {
+            try {
+                if (!yamlContent.trim()) {
+                    $('#tree').jstree(true).settings.core.data = [];
+                    $('#tree').jstree(true).refresh();
+                    $('#error-message').text('');
+                    return;
+                }
+
+                const data = jsyaml.load(yamlContent);
+                const treeData = convertToTreeData(data);
+                $('#tree').jstree(true).settings.core.data = treeData;
+                $('#tree').jstree(true).refresh();
+                $('#error-message').text('');
+            } catch (e) {
+                $('#error-message').text('Invalid YAML: ' + e.message);
+            }
+        }
+
+        async function loadFile() {
             const fileInput = document.getElementById('file-input');
             const fileSelect = document.getElementById('yaml-files');
 
-            // Handle new file upload
             if (fileInput.files.length > 0) {
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
@@ -270,9 +196,7 @@
                 } catch (error) {
                     alert('Upload failed: ' + error);
                 }
-            }
-            // Handle existing file selection
-            else if (fileSelect.value) {
+            } else if (fileSelect.value) {
                 currentFileName = fileSelect.value;
                 await loadYamlContent(currentFileName);
             } else {
@@ -290,9 +214,8 @@
                     return;
                 }
 
-                const treeData = convertToJsTree(data);
-                $('#tree').jstree(true).settings.core.data = treeData;
-                $('#tree').jstree(true).refresh();
+                document.getElementById('editor').value = jsyaml.dump(data);
+                updateTreePreview(document.getElementById('editor').value);
             } catch (error) {
                 alert('Error loading file: ' + error);
             }
@@ -304,12 +227,14 @@
                 return;
             }
 
-            const data = {
-                filename: currentFileName,
-                content: convertFromJsTree()
-            };
-
+            const yamlContent = document.getElementById('editor').value;
             try {
+                const yamlData = jsyaml.load(yamlContent);
+                const data = {
+                    filename: currentFileName,
+                    content: yamlData
+                };
+
                 const response = await fetch('/save', {
                     method: 'POST',
                     headers: {
@@ -325,9 +250,14 @@
                     alert('Error saving changes: ' + result.error);
                 }
             } catch (error) {
-                alert('Error saving changes: ' + error);
+                alert('Error parsing YAML: ' + error.message);
             }
         }
+
+        // Update tree preview when editor content changes
+        document.getElementById('editor').addEventListener('input', function(e) {
+            updateTreePreview(e.target.value);
+        });
     </script>
 </body>
 </html>

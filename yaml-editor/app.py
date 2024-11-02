@@ -1,88 +1,75 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
-import yaml
+# app.py
+from flask import Flask, render_template, request, jsonify
 import os
+import yaml
 import json
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'yaml_files'
-app.config['SECRET_KEY'] = 'your-secret-key-here'
 
-# Ensure upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+# Configuration
+YAML_DIR = 'yaml_files'
+os.makedirs(YAML_DIR, exist_ok=True)
 
 
-def yaml_to_dict(yaml_content):
-    """Convert YAML content to Python dictionary"""
+def load_yaml_file(filename):
     try:
-        return yaml.safe_load(yaml_content)
-    except yaml.YAMLError as e:
+        with open(os.path.join(YAML_DIR, filename), 'r') as file:
+            return yaml.safe_load(file)
+    except Exception as e:
         return {'error': str(e)}
 
 
-def dict_to_yaml(data):
-    """Convert Python dictionary to YAML string"""
+def save_yaml_file(filename, content):
     try:
-        return yaml.dump(data, default_flow_style=False)
-    except yaml.YAMLError as e:
-        return str(e)
+        with open(os.path.join(YAML_DIR, filename), 'w') as file:
+            yaml.dump(content, file, sort_keys=False)
+        return True
+    except Exception as e:
+        return False
 
 
 @app.route('/')
 def index():
-    """Main page route"""
-    yaml_files = [f for f in os.listdir(app.config['UPLOAD_FOLDER'])
-                  if f.endswith(('.yml', '.yaml'))]
+    yaml_files = [f for f in os.listdir(YAML_DIR) if f.endswith(('.yml', '.yaml'))]
     return render_template('index.html', yaml_files=yaml_files)
 
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    """Handle YAML file upload"""
     if 'file' not in request.files:
-        return jsonify({'error': 'No file part'})
+        return jsonify({'success': False, 'error': 'No file provided'})
 
     file = request.files['file']
     if file.filename == '':
-        return jsonify({'error': 'No selected file'})
+        return jsonify({'success': False, 'error': 'No file selected'})
 
-    if file and file.filename.endswith(('.yml', '.yaml')):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
-        return jsonify({'success': True, 'filename': filename})
+    if not file.filename.endswith(('.yml', '.yaml')):
+        return jsonify({'success': False, 'error': 'Invalid file type'})
 
-    return jsonify({'error': 'Invalid file type'})
+    try:
+        file.save(os.path.join(YAML_DIR, file.filename))
+        return jsonify({'success': True, 'filename': file.filename})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 
 @app.route('/load/<filename>')
-def load_yaml(filename):
-    """Load YAML file content"""
-    try:
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
-        with open(file_path, 'r') as file:
-            content = file.read()
-            data = yaml_to_dict(content)
-            return jsonify(data)
-    except Exception as e:
-        return jsonify({'error': str(e)})
+def load_file(filename):
+    content = load_yaml_file(filename)
+    return jsonify(content)
 
 
 @app.route('/save', methods=['POST'])
-def save_yaml():
-    """Save modified YAML content"""
-    try:
-        data = request.json
-        filename = secure_filename(data['filename'])
-        content = dict_to_yaml(data['content'])
+def save_file():
+    data = request.json
+    filename = data.get('filename')
+    content = data.get('content')
 
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        with open(file_path, 'w') as file:
-            file.write(content)
+    if not filename or content is None:
+        return jsonify({'success': False, 'error': 'Missing filename or content'})
 
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)})
+    success = save_yaml_file(filename, content)
+    return jsonify({'success': success})
 
 
 if __name__ == '__main__':
