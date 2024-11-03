@@ -5,40 +5,60 @@
     <title>YAML Editor</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/themes/default/style.min.css" rel="stylesheet">
     <style>
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            display: flex;
-            gap: 20px;
-        }
-        .editor-section, .preview-section {
-            flex: 1;
-            border: 1px solid #ccc;
-            padding: 15px;
-            border-radius: 4px;
-        }
-        #editor {
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            font-family: monospace;
-            resize: vertical;
-        }
-        #tree {
-            height: 800px;
-            overflow: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-        }
-        .controls {
-            margin-bottom: 15px;
-        }
-        button {
-            padding: 8px 15px;
-            margin-right: 10px;
-            cursor: pointer;
-        }
+        * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+.container {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    border: 1px solid #ddd;
+    padding: 10px;
+}
+.editor-section, .preview-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    border: 3px solid #ddd;
+    padding: 10px;
+}
+#editor, #tree {
+    flex: 1;
+    overflow: auto;
+}
+<!--        #tree {-->
+<!--            height: 800px;-->
+<!--            overflow: auto;-->
+<!--            border: 1px solid #ddd;-->
+<!--            padding: 10px;-->
+<!--        }-->
+.controls, .error {
+    flex-shrink: 0;
+}
+<!--        .controls {-->
+<!--            margin-bottom: 15px;-->
+<!--        }-->
+<!--        button {-->
+<!--            padding: 8px 15px;-->
+<!--            margin-right: 10px;-->
+<!--            cursor: pointer;-->
+<!--        }-->
         .error {
             color: red;
             margin-top: 10px;
@@ -51,12 +71,6 @@
             <h2>YAML Editor</h2>
             <div class="controls">
                 <input type="file" id="file-input" accept=".yml,.yaml">
-<!--                <select id="yaml-files">-->
-<!--                    <option value="">Select existing file...</option>-->
-<!--                    {% for file in yaml_files %}-->
-<!--                    <option value="{{ file }}">{{ file }}</option>-->
-<!--                    {% endfor %}-->
-<!--                </select>-->
                 <button onclick="loadFile()">Load</button>
                 <button onclick="saveChanges()">Save</button>
             </div>
@@ -97,6 +111,28 @@
             }
         });
 
+        // Function to recursively open all child nodes
+        function openAllChildren(tree, node) {
+            tree.open_node(node, function() {
+                const children = tree.get_node(node).children;
+                if (children) {
+                    children.forEach(child => openAllChildren(tree, child));
+                }
+            });
+        }
+
+        // Function to recursively close all child nodes
+        function closeAllChildren(tree, node) {
+            const children = tree.get_node(node).children;
+            if (children) {
+                children.forEach(child => {
+                    closeAllChildren(tree, child);
+                    tree.close_node(child);
+                });
+            }
+            tree.close_node(node);
+        }
+
         // Add click handlers for the tree
         $('#tree')
             .on('click', '.jstree-anchor', function(e) {
@@ -107,9 +143,9 @@
 
                 if (tree.is_loaded(nodeId) && tree.get_node(nodeId).children.length > 0) {
                     if (tree.is_open(nodeId)) {
-                        tree.close_node(nodeId);
+                        closeAllChildren(tree, nodeId);
                     } else {
-                        tree.open_node(nodeId);
+                        openAllChildren(tree, nodeId);
                     }
                 }
             });
@@ -225,7 +261,7 @@
                 } catch (error) {
                     alert('Upload failed: ' + error);
                 }
-            } else if (fileSelect.value) {
+            } else if (fileSelect && fileSelect.value) {
                 currentFileName = fileSelect.value;
                 await loadYamlContent(currentFileName);
             } else {
@@ -288,19 +324,20 @@
             updateTreePreview(e.target.value);
         });
 
-     // Optional: Add keyboard shortcuts
+        // Add keyboard shortcuts with recursive expansion/collapse
         $(document).on('keydown', function(e) {
             if (e.target.id === 'editor') return; // Don't interfere with editor
 
-            if (e.key === 'ArrowRight') {
-                let selected = $('#tree').jstree('get_selected');
-                if (selected.length) {
-                    $('#tree').jstree('open_node', selected);
-                }
-            } else if (e.key === 'ArrowLeft') {
-                let selected = $('#tree').jstree('get_selected');
-                if (selected.length) {
-                    $('#tree').jstree('close_node', selected);
+            let tree = $('#tree').jstree(true);
+            let selected = tree.get_selected();
+
+            if (selected.length && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+                e.preventDefault(); // Prevent default arrow key behavior
+
+                if (e.key === 'ArrowRight') {
+                    openAllChildren(tree, selected[0]);
+                } else if (e.key === 'ArrowLeft') {
+                    closeAllChildren(tree, selected[0]);
                 }
             }
         });
