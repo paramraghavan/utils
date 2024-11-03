@@ -51,12 +51,12 @@
             <h2>YAML Editor</h2>
             <div class="controls">
                 <input type="file" id="file-input" accept=".yml,.yaml">
-                <select id="yaml-files">
-                    <option value="">Select existing file...</option>
-                    {% for file in yaml_files %}
-                    <option value="{{ file }}">{{ file }}</option>
-                    {% endfor %}
-                </select>
+<!--                <select id="yaml-files">-->
+<!--                    <option value="">Select existing file...</option>-->
+<!--                    {% for file in yaml_files %}-->
+<!--                    <option value="{{ file }}">{{ file }}</option>-->
+<!--                    {% endfor %}-->
+<!--                </select>-->
                 <button onclick="loadFile()">Load</button>
                 <button onclick="saveChanges()">Save</button>
             </div>
