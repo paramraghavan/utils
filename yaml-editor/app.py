@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, jsonify
 import os
 import yaml
 import json
+from process_yaml_file import read_yaml_file
 
 app = Flask(__name__)
 
@@ -13,8 +14,9 @@ os.makedirs(YAML_DIR, exist_ok=True)
 
 def load_yaml_file(filename):
     try:
-        with open(os.path.join(YAML_DIR, filename), 'r') as file:
-            return yaml.safe_load(file)
+        # with open(os.path.join(YAML_DIR, filename), 'r') as file:
+        #     return yaml.safe_load(file)
+        return read_yaml_file(os.path.join(YAML_DIR, filename))
     except Exception as e:
         return {'error': str(e)}
 
@@ -52,11 +54,12 @@ def upload_file():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-
+import json
 @app.route('/load/<filename>')
 def load_file(filename):
     content = load_yaml_file(filename)
-    return jsonify(content)
+    return json.dumps(content)
+    # return jsonify(content)
 
 
 @app.route('/save', methods=['POST'])
